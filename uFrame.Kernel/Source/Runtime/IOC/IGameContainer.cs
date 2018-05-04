@@ -62,6 +62,16 @@ namespace uFrame.IOC
         void RegisterInstance<TBase>(TBase instance, string name, bool injectNow = true) where TBase : class;
 
         void RegisterInstance<TBase>(TBase instance) where TBase : class;
+        
+        void RegisterInstanceWithInterfaces<TBase>(TBase @default, bool injectNow) where TBase : class;
+        
+        void RegisterInstanceWithInterfaces(Type type, object @default, bool injectNow);
+        
+        void RegisterInstanceWithInterfaces(Type baseType, object instance = null, string name = null, bool injectNow = true);
+
+        void RegisterInstanceWithInterfaces<TBase>(TBase instance, string name, bool injectNow = true) where TBase : class;
+
+        void RegisterInstanceWithInterfaces<TBase>(TBase instance) where TBase : class;
 
         /// <summary>
         ///  If an instance of T exist then it will return that instance otherwise it will create a new one based off mappings.

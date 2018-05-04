@@ -8,46 +8,31 @@ namespace uFrame.Kernel
     /// <summary>
     /// The uFrameComponent is a simple class that extends from MonoBehaviour, and is directly plugged into the kernel.
     /// Use this component when creating any components manually or if you need to plug existing libraries into the uFrame system.
-    /// <example>
-    /// public class MyComponent : uFrameComponent {
-    /// }
-    /// </example></summary>
-    /// <example>
-    /// 	<para>public class MyComponent : uFrameComponent {</para>
-    /// 	<para>      public override void KernelLoaded() {</para>
-    /// 	<para>             this.Publish(new MyComponentCreatedEvent() { Instance = this });</para>
-    /// 	<para>      }</para>
-    /// 	<para>}</para>
-    /// </example>
+    /// </summary>
     public class uFrameComponent : MonoBehaviour, IDisposableContainer
     {
         private CompositeDisposable _disposer;
+
+        protected IEventAggregator EventAggregator => uFrameKernel.EventAggregator;
 
         CompositeDisposable IDisposableContainer.Disposer
         {
             get { return _disposer ?? (_disposer = new CompositeDisposable()); }
             set { _disposer = value; }
         }
+
         protected virtual void OnDestroy()
         {
-            if (_disposer != null)
-            {
-                _disposer.Dispose();
-            }
-        }
-
-        protected IEventAggregator EventAggregator
-        {
-            get { return uFrameKernel.EventAggregator; }
+            _disposer?.Dispose();
         }
 
         /// <summary>Wait for an Event to occur on the global event aggregator.</summary>
         /// <example>
         /// this.OnEvent&lt;MyEventClass&gt;().Subscribe(myEventClassInstance=&gt;{ DO_SOMETHING_HERE });
         /// </example>
-        public IObservable<TEvent> OnEvent<TEvent>()
+        public IObservable<TEvent> Receive<TEvent>()
         {
-            return EventAggregator.GetEvent<TEvent>();
+            return EventAggregator.Receive<TEvent>();
         }
 
         /// <summary>Publishes a command to the event aggregator. Publish the class data you want, and let any "OnEvent" subscriptions handle them.</summary>
@@ -64,9 +49,9 @@ namespace uFrame.Kernel
             KernelLoading();
             if (!uFrameKernel.IsKernelLoaded)
                 uFrameKernel.EventAggregator
-                .GetEvent<KernelLoadedEvent>()
-                .Take(1)
-                .Subscribe(x => KernelLoaded());
+                    .Receive<KernelLoadedEvent>()
+                    .Take(1)
+                    .Subscribe(x => KernelLoaded());
             else KernelLoaded();
         }
 
@@ -75,7 +60,6 @@ namespace uFrame.Kernel
         /// </summary>
         public virtual void KernelLoading()
         {
-
         }
 
         /// <summary>
@@ -83,10 +67,6 @@ namespace uFrame.Kernel
         /// </summary>
         public virtual void KernelLoaded()
         {
-
         }
-
-
-
     }
 }

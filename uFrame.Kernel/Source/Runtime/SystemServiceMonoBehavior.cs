@@ -33,9 +33,7 @@ namespace uFrame.Kernel
         public virtual void Setup()
         {
             if (Disposer.IsDisposed)
-            {
                 Disposer = new CompositeDisposable();
-            }
         }
 
         /// <summary>

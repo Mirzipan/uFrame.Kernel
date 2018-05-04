@@ -5,7 +5,7 @@ namespace uFrame.Kernel
 {
     public interface IEventAggregator
     {
-        IObservable<TEvent> GetEvent<TEvent>();
+        IObservable<TEvent> Receive<TEvent>();
         void Publish<TEvent>(TEvent evt);
         bool DebugEnabled { get; set; }
     }

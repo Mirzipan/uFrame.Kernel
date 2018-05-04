@@ -13,22 +13,12 @@ namespace uFrame.Kernel
     /// </summary>
     public class Scene : uFrameComponent, IScene
     {
-        [SerializeField] private string _KernelScene;
+        [SerializeField] private string _kernelScene;
 
         /// <summary>
         /// The kernel scene property is so that this scene can load the correct kernel if it hasn't been loaded yet.
         /// </summary>
-        protected string KernelScene
-        {
-            get
-            {
-                if (string.IsNullOrEmpty(_KernelScene))
-                {
-                    return DefaultKernelScene;
-                }
-                return _KernelScene;
-            }
-        }
+        protected string KernelScene => string.IsNullOrEmpty(_kernelScene) ? DefaultKernelScene : _kernelScene;
 
         /// <summary>
         /// The default kernel scene is what is used if the "KernelScene" property is not set.  This is really used by
@@ -51,9 +41,7 @@ namespace uFrame.Kernel
         /// <summary>
         /// Whether the scene will be set as active in SceneManager
         /// </summary>
-        public virtual bool IsActiveScene {
-            get { return false; }
-        }
+        public virtual bool IsActiveScene => false;
 
         /// <summary>
         /// In this class we override the start method so that we can trigger the kernel to load if its not already.
@@ -62,9 +50,7 @@ namespace uFrame.Kernel
         protected override void Start()
         {
             if (IsActiveScene)
-            {
                 SceneManager.SetActiveScene(gameObject.scene);
-            }
 
             if (!uFrameKernel.IsKernelLoaded)
             {
@@ -78,7 +64,7 @@ namespace uFrame.Kernel
         public override void KernelLoaded()
         {
             base.KernelLoaded();
-            this.Publish(new SceneAwakeEvent() { Scene = this });
+            Publish(new SceneAwakeEvent() { Scene = this });
         }
     }
 

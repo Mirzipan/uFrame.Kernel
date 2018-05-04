@@ -10,60 +10,53 @@ namespace uFrame.Kernel
 {
     public class SceneManagementService : SystemServiceMonoBehavior
     {
+        #region Private
+
         private Queue<SceneQueueItem> _scenesQueue;
-
-        public Queue<SceneQueueItem> ScenesQueue
-        {
-            get { return _scenesQueue ?? (_scenesQueue = new Queue<SceneQueueItem>()); }
-        }
-
-        public List<IScene> LoadedScenes
-        {
-            get { return _loadedScenes ?? (_loadedScenes = new List<IScene>()); }
-        }
-
+        private List<ISceneLoader> _sceneLoaders;
         private List<IScene> _loadedScenes;
+
+        private DefaultSceneLoader _defaultSceneLoader;
+
+        #endregion
+
+        #region Properties
+
+        public Queue<SceneQueueItem> ScenesQueue => _scenesQueue ?? (_scenesQueue = new Queue<SceneQueueItem>());
+
+        public List<ISceneLoader> SceneLoaders => _sceneLoaders ?? (_sceneLoaders = new List<ISceneLoader>());
+        public List<IScene> LoadedScenes => _loadedScenes ?? (_loadedScenes = new List<IScene>());
+
+        #endregion
 
         public override void Setup()
         {
             base.Setup();
 
 
-            this.OnEvent<LoadSceneCommand>().Subscribe(_ =>
+            Receive<LoadSceneCommand>().Subscribe(_ =>
             {
-
-                this.LoadScene(_.SceneName, _.Settings, _.RestrictToSingleScene);
+                LoadScene(_.SceneName, _.Settings, _.RestrictToSingleScene);
             });
 
-            this.OnEvent<UnloadSceneCommand>().Subscribe(_ =>
-            {
-                this.UnloadScene(_.SceneName);
-            });
+            Receive<UnloadSceneCommand>().Subscribe(_ => { UnloadScene(_.SceneName); });
 
             var attachedSceneLoaders =
-                uFrameKernel.Instance.GetComponentsInChildren(typeof (ISceneLoader)).OfType<ISceneLoader>();
+                uFrameKernel.Instance.GetComponentsInChildren(typeof(ISceneLoader)).OfType<ISceneLoader>();
             foreach (var sceneLoader in attachedSceneLoaders)
             {
-                uFrameKernel.Container.RegisterSceneLoader(sceneLoader);
+                uFrameKernel.Container.RegisterInstanceWithInterfaces(sceneLoader.GetType(), sceneLoader,
+                    sceneLoader.GetType().Name, false);
+                uFrameKernel.Container.RegisterInstance(sceneLoader.GetType(), sceneLoader, false);
                 uFrameKernel.Container.Inject(sceneLoader);
                 SceneLoaders.Add(sceneLoader);
             }
+
             _defaultSceneLoader = gameObject.GetComponent<DefaultSceneLoader>() ??
                                   gameObject.AddComponent<DefaultSceneLoader>();
 
-            this.OnEvent<SceneAwakeEvent>().Subscribe(_ => StartCoroutine(SetupScene(_.Scene)));
+            Receive<SceneAwakeEvent>().Subscribe(_ => StartCoroutine(SetupScene(_.Scene)));
         }
-
-        private List<ISceneLoader> _sceneLoaders;
-
-        public List<ISceneLoader> SceneLoaders
-        {
-            get { return _sceneLoaders ?? (_sceneLoaders = new List<ISceneLoader>()); }
-        }
-
-
-        private DefaultSceneLoader _defaultSceneLoader;
-
 
         public IEnumerator LoadSceneInternal(string sceneName)
         {
@@ -88,11 +81,12 @@ namespace uFrame.Kernel
                     (LoadedScenes.Any(p => p.Name == name)
                      || ScenesQueue.Any(p => p.Name == name)
                      || SceneManager.GetSceneByName(name).isLoaded)) continue;
-                    // Application.loadedLevelName == name)) continue;
+                // Application.loadedLevelName == name)) continue;
                 if (item.Loader == null)
                 {
                     item.Loader = LoadSceneInternal(item.Name);
                 }
+
                 ScenesQueue.Enqueue(item);
             }
         }
@@ -112,8 +106,7 @@ namespace uFrame.Kernel
 
         public IEnumerator SetupScene(IScene sceneRoot)
         {
-
-            this.Publish(new SceneLoaderEvent()
+            Publish(new SceneLoaderEvent()
             {
                 State = SceneState.Instantiating,
                 SceneRoot = sceneRoot
@@ -134,7 +127,7 @@ namespace uFrame.Kernel
             }
 
 
-            this.Publish(new SceneLoaderEvent()
+            Publish(new SceneLoaderEvent()
             {
                 State = SceneState.Instantiated,
                 SceneRoot = sceneRoot
@@ -142,7 +135,7 @@ namespace uFrame.Kernel
             var sceneRootClosure = sceneRoot;
             Action<float, string> updateDelegate = (v, m) =>
             {
-                this.Publish(new SceneLoaderEvent()
+                Publish(new SceneLoaderEvent()
                 {
                     SceneRoot = sceneRootClosure,
                     Name = sceneRootClosure.Name,
@@ -159,31 +152,28 @@ namespace uFrame.Kernel
 
             LoadedScenes.Add(sceneRoot);
 
-            this.Publish(new SceneLoaderEvent()
+            Publish(new SceneLoaderEvent()
             {
                 State = SceneState.Loaded,
                 SceneRoot = sceneRoot
             });
-
-
         }
 
         protected IEnumerator UnloadSceneAsync(string name)
         {
             var sceneRoot = LoadedScenes.FirstOrDefault(s => s.Name == name);
-            if (sceneRoot != null) yield return StartCoroutine(this.UnloadSceneAsync(sceneRoot));
+            if (sceneRoot != null) yield return StartCoroutine(UnloadSceneAsync(sceneRoot));
             else yield break;
         }
 
         protected IEnumerator UnloadSceneAsync(IScene sceneRoot)
         {
-
             var sceneLoader = SceneLoaders.FirstOrDefault(loader => loader.SceneType == sceneRoot.GetType()) ??
                               _defaultSceneLoader;
 
             Action<float, string> updateDelegate = (v, m) =>
             {
-                this.Publish(new SceneLoaderEvent()
+                Publish(new SceneLoaderEvent()
                 {
                     State = SceneState.Unloading,
                     Progress = v,
@@ -194,14 +184,16 @@ namespace uFrame.Kernel
             yield return StartCoroutine(sceneLoader.Unload(sceneRoot, updateDelegate));
 
             LoadedScenes.Remove(sceneRoot);
-            this.Publish(new SceneLoaderEvent() {State = SceneState.Unloaded, SceneRoot = sceneRoot});
+            Publish(new SceneLoaderEvent() {State = SceneState.Unloaded, SceneRoot = sceneRoot});
 
-            AsyncOperation unloadSceneAsync = SceneManager.UnloadSceneAsync(((MonoBehaviour) sceneRoot).gameObject.scene);
-            while (!unloadSceneAsync.isDone) {
+            AsyncOperation unloadSceneAsync =
+                SceneManager.UnloadSceneAsync(((MonoBehaviour) sceneRoot).gameObject.scene);
+            while (!unloadSceneAsync.isDone)
+            {
                 yield return null;
             }
 
-            this.Publish(new SceneLoaderEvent() {State = SceneState.Destructed, SceneRoot = sceneRoot});
+            Publish(new SceneLoaderEvent() {State = SceneState.Destructed, SceneRoot = sceneRoot});
         }
 
         public void UnloadScene(string name)
@@ -234,30 +226,29 @@ namespace uFrame.Kernel
         {
             if (restrictToSingleScene &&
                 (LoadedScenes.Any(p => p.Name == name)
-              || ScenesQueue.Any(p => p.Name == name)
-              || SceneManager.GetSceneByName(name).isLoaded)) return;
-                 //Application.loadedLevelName == name)) return;
-            this.QueueSceneLoad(name, settings);
-            this.ExecuteLoad();
+                 || ScenesQueue.Any(p => p.Name == name)
+                 || SceneManager.GetSceneByName(name).isLoaded)) return;
+            //Application.loadedLevelName == name)) return;
+            QueueSceneLoad(name, settings);
+            ExecuteLoad();
         }
 
         public void LoadScenes(params SceneQueueItem[] items)
         {
-
-            this.QueueScenesLoad(items);
-            this.ExecuteLoad();
+            QueueScenesLoad(items);
+            ExecuteLoad();
         }
 
         public void QueueSceneLoadIfNotAlready(string sceneName, ISceneSettings settings)
         {
-
             if (LoadedScenes.Any(p => p.Name == sceneName)
-             || ScenesQueue.Any(p => p.Name == sceneName)
-             || SceneManager.GetSceneByName(sceneName).isLoaded)
+                || ScenesQueue.Any(p => p.Name == sceneName)
+                || SceneManager.GetSceneByName(sceneName).isLoaded)
                 //Application.loadedLevelName == sceneName)
             {
                 return;
             }
+
             ScenesQueue.Enqueue(new SceneQueueItem()
             {
                 Loader = LoadSceneInternal(sceneName),
@@ -282,6 +273,7 @@ namespace uFrame.Kernel
                     });
                     lastProgress = asyncOperation.progress;
                 }
+
                 yield return new WaitForSeconds(0.1f);
             }
         }

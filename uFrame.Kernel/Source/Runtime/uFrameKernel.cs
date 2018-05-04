@@ -13,7 +13,6 @@ namespace uFrame.Kernel
 {
     public class uFrameKernel : MonoBehaviour
     {
-
         private static UFrameContainer _container;
         private static IEventAggregator _eventAggregator;
 
@@ -50,15 +49,9 @@ namespace uFrame.Kernel
             set { _eventAggregator = value; }
         }
 
-        public List<ISystemLoader> SystemLoaders
-        {
-            get { return _systemLoaders ?? (_systemLoaders = new List<ISystemLoader>()); }
-        }
+        public List<ISystemLoader> SystemLoaders => _systemLoaders ?? (_systemLoaders = new List<ISystemLoader>());
 
-        public List<ISystemService> Services
-        {
-            get { return _services ?? (_services = new List<ISystemService>()); }
-        }
+        public List<ISystemService> Services => _services ?? (_services = new List<ISystemService>());
 
         private void Awake()
         {
@@ -81,13 +74,13 @@ namespace uFrame.Kernel
 
             foreach (var systemLoader in attachedSystemLoaders)
             {
-                this.Publish(new SystemLoaderEvent() {State = SystemState.Loading, Loader = systemLoader});
+                Publish(new SystemLoaderEvent() {State = SystemState.Loading, Loader = systemLoader});
                 systemLoader.Container = Container;
                 systemLoader.EventAggregator = EventAggregator;
                 systemLoader.Load();
                 yield return StartCoroutine(systemLoader.LoadAsync());
                 SystemLoaders.Add(systemLoader);
-                this.Publish(new SystemLoaderEvent() {State = SystemState.Loaded, Loader = systemLoader});
+                Publish(new SystemLoaderEvent() {State = SystemState.Loaded, Loader = systemLoader});
             }
 
             var attachedServices = gameObject.GetComponentsInChildren(typeof (SystemServiceMonoBehavior))
@@ -97,7 +90,8 @@ namespace uFrame.Kernel
 
             foreach (var service in attachedServices)
             {
-                Container.RegisterService(service);
+                Container.RegisterInstance(service.GetType(), service);
+                Container.RegisterInstanceWithInterfaces(service.GetType(), service, service.name);
 
             }
 
@@ -109,9 +103,9 @@ namespace uFrame.Kernel
             for (int index = 0; index < allServices.Length; index++)
             {
                 var service = allServices[index];
-                this.Publish(new ServiceLoaderEvent() { State = ServiceState.Loading, Service = service, GlobalProgress = (index+1)/(float)allServices.Length });
+                Publish(new ServiceLoaderEvent() { State = ServiceState.Loading, Service = service, GlobalProgress = (index+1)/(float)allServices.Length });
                 yield return StartCoroutine(service.SetupAsync());
-                this.Publish(new ServiceLoaderEvent() { State = ServiceState.Loaded, Service = service });
+                Publish(new ServiceLoaderEvent() { State = ServiceState.Loaded, Service = service });
 
             }
             foreach (var service in allServices)
@@ -123,19 +117,19 @@ namespace uFrame.Kernel
                 service.Loaded();
             }
 
-            this.Publish(new SystemsLoadedEvent()
+            Publish(new SystemsLoadedEvent()
             {
                 Kernel = this
             });
 
             _isKernelLoaded = true;
 
-            this.Publish(new KernelLoadedEvent()
+            Publish(new KernelLoadedEvent()
             {
                 Kernel = this
             });
             yield return new WaitForEndOfFrame(); //Ensure that everything is bound
-            this.Publish(new GameReadyEvent());
+            Publish(new GameReadyEvent());
         }
 
         public void OnDestroy()
@@ -164,6 +158,16 @@ namespace uFrame.Kernel
             Instance.ResetKernel();
             if (levelToLoad != null)
                 SceneManager.LoadScene(levelToLoad);
+        }
+
+        public void Publish<TEvent>(TEvent evt)
+        {
+            EventAggregator.Publish(evt);
+        }
+
+        public IObservable<TEvent> Receive<TEvent>()
+        {
+            return EventAggregator.Receive<TEvent>();
         }
     }
 
@@ -249,37 +253,5 @@ namespace uFrame.Kernel
         Loading,
         Loaded,
         Unloaded,
-    }
-
-    public static class uFrameKernelExtensions
-    {
-        public static void RegisterService(this IUFrameContainer container, ISystemService service)
-        {
-            container.RegisterInstance<ISystemService>(service, service.GetType().Name);
-            //container.RegisterInstance(typeof(TService), service, false);
-            container.RegisterInstance(service.GetType(), service);
-        }
-
-        public static void RegisterService<TService>(this IUFrameContainer container, ISystemService service)
-        {
-            container.RegisterInstance<ISystemService>(service, service.GetType().Name);
-            container.RegisterInstance(typeof (TService), service);
-        }
-
-        public static void RegisterSceneLoader(this IUFrameContainer container, ISceneLoader sceneLoader)
-        {
-            container.RegisterInstance<ISceneLoader>(sceneLoader, sceneLoader.GetType().Name, false);
-            container.RegisterInstance(sceneLoader.GetType(), sceneLoader, false);
-        }
-
-        public static void Publish<TEvent>(this uFrameKernel kernel, TEvent evt)
-        {
-            uFrameKernel.EventAggregator.Publish(evt);
-        }
-
-        public static IObservable<TEvent> OnEvent<TEvent>(this uFrameKernel kernel)
-        {
-            return uFrameKernel.EventAggregator.GetEvent<TEvent>();
-        }
     }
 }

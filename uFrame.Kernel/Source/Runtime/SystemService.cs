@@ -33,9 +33,9 @@ namespace uFrame.Kernel
 
         }
 
-        public IObservable<TEvent> OnEvent<TEvent>()
+        public IObservable<TEvent> Receive<TEvent>()
         {
-            return EventAggregator.GetEvent<TEvent>();
+            return EventAggregator.Receive<TEvent>();
         }
 
         public void Publish<TEvent>(TEvent eventMessage)

@@ -14,26 +14,22 @@ namespace uFrame.Kernel
             get { return _disposer ?? (_disposer = new CompositeDisposable()); }
             set { _disposer = value; }
         }
+        
+        protected IEventAggregator EventAggregator => uFrameKernel.EventAggregator;
+        
         protected virtual void OnDestroy()
         {
-            if (_disposer != null)
-            {
-                _disposer.Dispose();
-            }
+            _disposer?.Dispose();
         }
 
-        protected IEventAggregator EventAggregator
-        {
-            get { return uFrameKernel.EventAggregator; }
-        }
 
         /// <summary>Wait for an Event to occur on the global event aggregator.</summary>
         /// <example>
         /// this.OnEvent&lt;MyEventClass&gt;().Subscribe(myEventClassInstance=&gt;{ DO_SOMETHING_HERE });
         /// </example>
-        public IObservable<TEvent> OnEvent<TEvent>()
+        public IObservable<TEvent> Receive<TEvent>()
         {
-            return EventAggregator.GetEvent<TEvent>();
+            return EventAggregator.Receive<TEvent>();
         }
 
         /// <summary>Publishes a command to the event aggregator. Publish the class data you want, and let any "OnEvent" subscriptions handle them.</summary>

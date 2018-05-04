@@ -11,11 +11,14 @@ namespace uFrame.IOC
     /// <summary>
     /// A ViewModel Container and a factory for Controllers and commands.
     /// </summary>
-
     public class UFrameContainer : IUFrameContainer
     {
-        private readonly Dictionary<Type, TypeInjectionInfo> _typeInjectionInfos = new Dictionary<Type, TypeInjectionInfo>();
-        private readonly Dictionary<Type, TypeReflectionInfo> _typeReflectionInfos = new Dictionary<Type, TypeReflectionInfo>();
+        private readonly Dictionary<Type, TypeInjectionInfo> _typeInjectionInfos =
+            new Dictionary<Type, TypeInjectionInfo>();
+
+        private readonly Dictionary<Type, TypeReflectionInfo> _typeReflectionInfos =
+            new Dictionary<Type, TypeReflectionInfo>();
+
         private TypeInstanceCollection _instances;
         private TypeMappingCollection _mappings;
 
@@ -40,9 +43,7 @@ namespace uFrame.IOC
         public IEnumerable<TType> ResolveAll<TType>()
         {
             foreach (var obj in ResolveAll(typeof(TType)))
-            {
-                yield return (TType)obj;
-            }
+                yield return (TType) obj;
         }
 
         /// <summary>
@@ -52,30 +53,31 @@ namespace uFrame.IOC
         /// <returns>List of objects.</returns>
         public IEnumerable<object> ResolveAll(Type type)
         {
-            foreach (KeyValuePair<Tuple<Type, string>, object> kv in Instances)
+            foreach (var kv in Instances)
             {
-                if (kv.Key.Item1 == type && !string.IsNullOrEmpty(kv.Key.Item2))
+                if (kv.Key.Type == type && !string.IsNullOrEmpty(kv.Key.Name))
                     yield return kv.Value;
             }
 
-            foreach (KeyValuePair<Tuple<Type, string>, Type> kv in Mappings)
+            foreach (var kv in Mappings)
             {
-                if (!string.IsNullOrEmpty(kv.Key.Item2))
-                {
+                if (string.IsNullOrEmpty(kv.Key.Name)) 
+                    continue;
+                
 #if NETFX_CORE
-                    var condition = type.GetTypeInfo().IsSubclassOf(mapping.From);
+                var condition = type.GetTypeInfo().IsSubclassOf(mapping.From);
 #else
-                    var condition = type.IsAssignableFrom(kv.Key.Item1);
+                var condition = type.IsAssignableFrom(kv.Key.Type);
 #endif
-                    if (condition)
-                    {
-                        var item = Activator.CreateInstance(kv.Value);
-                        Inject(item);
-                        yield return item;
-                    }
-                }
+                if (!condition) 
+                    continue;
+                
+                var item = Activator.CreateInstance(kv.Value);
+                Inject(item);
+                yield return item;
             }
         }
+
         /// <summary>
         /// Clears all type-mappings and instances.
         /// </summary>
@@ -94,17 +96,21 @@ namespace uFrame.IOC
         {
             if (obj == null) return;
 
-            Type objectType = obj.GetType();
-            TypeInjectionInfo typeInjectionInfo = GetTypeInjectionInfo(objectType);
+            var objectType = obj.GetType();
+            var typeInjectionInfo = GetTypeInjectionInfo(objectType);
 
-            for (int i = 0; i < typeInjectionInfo.PropertyInjectionInfos.Length; i++) {
+            for (var i = 0; i < typeInjectionInfo.PropertyInjectionInfos.Length; i++)
+            {
                 var injectionInfo = typeInjectionInfo.PropertyInjectionInfos[i];
-                injectionInfo.MemberInfo.SetValue(obj, Resolve(injectionInfo.MemberType, injectionInfo.InjectName, false, null), null);
+                injectionInfo.MemberInfo.SetValue(obj,
+                    Resolve(injectionInfo.MemberType, injectionInfo.InjectName, false, null), null);
             }
 
-            for (int i = 0; i < typeInjectionInfo.FieldInjectionInfos.Length; i++) {
+            for (var i = 0; i < typeInjectionInfo.FieldInjectionInfos.Length; i++)
+            {
                 var injectionInfo = typeInjectionInfo.FieldInjectionInfos[i];
-                injectionInfo.MemberInfo.SetValue(obj, Resolve(injectionInfo.MemberType, injectionInfo.InjectName, false, null));
+                injectionInfo.MemberInfo.SetValue(obj,
+                    Resolve(injectionInfo.MemberType, injectionInfo.InjectName, false, null));
             }
         }
 
@@ -141,13 +147,13 @@ namespace uFrame.IOC
         /// <param name="name">The name for the instance to be resolved.</param>
         /// <param name="instance">The instance that will be resolved be the name</param>
         /// <param name="injectNow">Perform the injection immediately</param>
-        public virtual void RegisterInstance(Type baseType, object instance = null, string name = null, bool injectNow = true)
+        public virtual void RegisterInstance(Type baseType, object instance = null, string name = null,
+            bool injectNow = true)
         {
             Instances[baseType, name] = instance;
+
             if (injectNow)
-            {
                 Inject(instance);
-            }
         }
 
         public void RegisterInstance<TBase>(TBase instance) where TBase : class
@@ -165,6 +171,40 @@ namespace uFrame.IOC
             RegisterInstance(typeof(TBase), instance, name, injectNow);
         }
 
+        public void RegisterInstanceWithInterfaces<TBase>(TBase instance, bool injectNow) where TBase : class
+        {
+            RegisterInstanceWithInterfaces<TBase>(instance, null, injectNow);
+        }
+
+        public void RegisterInstanceWithInterfaces(Type baseType, object instance = null, bool injectNow = true)
+        {
+            RegisterInstanceWithInterfaces(baseType, instance, null, injectNow);
+        }
+
+        public void RegisterInstanceWithInterfaces(Type baseType, object instance = null, string name = null,
+            bool injectNow = true)
+        {
+            var interfaces = baseType.GetInterfaces();
+            foreach (var iface in interfaces)
+                RegisterInstance(iface, instance, name);
+
+            Instances[baseType, name] = instance;
+
+            if (injectNow)
+                Inject(instance);
+        }
+
+        public void RegisterInstanceWithInterfaces<TBase>(TBase instance, string name, bool injectNow = true)
+            where TBase : class
+        {
+            RegisterInstanceWithInterfaces(typeof(TBase), instance, name, injectNow);
+        }
+
+        public void RegisterInstanceWithInterfaces<TBase>(TBase instance) where TBase : class
+        {
+            RegisterInstanceWithInterfaces<TBase>(instance, true);
+        }
+
         /// <summary>
         ///  If an instance of T exist then it will return that instance otherwise it will create a new one based off mappings.
         /// </summary>
@@ -172,7 +212,7 @@ namespace uFrame.IOC
         /// <returns>The/An instance of 'instanceType'</returns>
         public T Resolve<T>(string name = null, bool requireInstance = false, object[] args = null) where T : class
         {
-            return (T)Resolve(typeof(T), name, requireInstance, args);
+            return (T) Resolve(typeof(T), name, requireInstance, args);
         }
 
         /// <summary>
@@ -183,25 +223,26 @@ namespace uFrame.IOC
         /// <param name="requireInstance">If true will return null if an instance isn't registered.</param>
         /// <param name="constructorArgs">The arguments to pass to the constructor if any.</param>
         /// <returns>The/An instance of 'instanceType'</returns>
-        public object Resolve(Type baseType, string name = null, bool requireInstance = false, object[] constructorArgs = null)
+        public object Resolve(Type baseType, string name = null, bool requireInstance = false,
+            object[] constructorArgs = null)
         {
             // Look for an instance first
             var item = Instances[baseType, name];
             if (item != null)
-            {
                 return item;
-            }
+
             if (requireInstance)
                 return null;
+
             // Check if there is a mapping of the type
             var namedMapping = Mappings[baseType, name];
-            if (namedMapping != null)
-            {
-                var obj = CreateInstance(namedMapping, constructorArgs);
-                //Inject(obj);
-                return obj;
-            }
-            return null;
+            if (namedMapping == null) 
+                return null;
+            
+            var obj = CreateInstance(namedMapping, constructorArgs);
+            //Inject(obj);
+            return obj;
+
         }
 
         public object CreateInstance(Type type, object[] constructorArgs = null)
@@ -221,17 +262,18 @@ namespace uFrame.IOC
 
             var maxParameters = reflectionInfo.PublicConstructors[0].Parameters;
 
-            for (int i = 0; i < reflectionInfo.PublicConstructors.Length; i++) {
+            for (var i = 0; i < reflectionInfo.PublicConstructors.Length; i++)
+            {
                 var c = reflectionInfo.PublicConstructors[i];
                 var parameters = c.Parameters;
-                if (parameters.Length > maxParameters.Length) {
+                if (parameters.Length > maxParameters.Length)
                     maxParameters = parameters;
-                }
             }
+
             var args = new object[maxParameters.Length];
-            for (int i = 0; i < maxParameters.Length; i++)
+            for (var i = 0; i < maxParameters.Length; i++)
             {
-                ParameterInfo parameterInfo = maxParameters[i];
+                var parameterInfo = maxParameters[i];
                 if (parameterInfo.ParameterType.IsArray)
                 {
                     args[i] = ResolveAll(parameterInfo.ParameterType);
@@ -253,20 +295,21 @@ namespace uFrame.IOC
         {
             try
             {
-                return (TBase)ResolveRelation(tfor, typeof(TBase), args);
+                return (TBase) ResolveRelation(tfor, typeof(TBase), args);
             }
             catch (InvalidCastException castIssue)
             {
-                throw new Exception(string.Format("Resolve Relation couldn't cast  to {0} from {1}", typeof(TBase).Name, tfor.Name), castIssue);
+                throw new Exception($"Resolve Relation couldn't cast  to {typeof(TBase).Name} from {tfor.Name}",
+                    castIssue);
             }
         }
+
         public void InjectAll()
         {
-            foreach (object instance in Instances.Values)
-            {
+            foreach (var instance in Instances.Values)
                 Inject(instance);
-            }
         }
+
         private TypeRelationCollection _relationshipMappings = new TypeRelationCollection();
 
         public void RegisterRelation<TFor, TBase, TConcrete>()
@@ -278,42 +321,45 @@ namespace uFrame.IOC
         {
             RelationshipMappings[tfor, tbase] = tconcrete;
         }
+
         public object ResolveRelation(Type tfor, Type tbase, object[] args = null)
         {
             var concreteType = RelationshipMappings[tfor, tbase];
 
             if (concreteType == null)
-            {
                 return null;
-            }
+
             var result = CreateInstance(concreteType, args);
             //Inject(result);
             return result;
         }
+
         public TBase ResolveRelation<TFor, TBase>(object[] arg = null)
         {
-            return (TBase)ResolveRelation(typeof(TFor), typeof(TBase), arg);
+            return (TBase) ResolveRelation(typeof(TFor), typeof(TBase), arg);
         }
 
         private TypeInjectionInfo GetTypeInjectionInfo(Type type)
         {
             TypeInjectionInfo typeInjectionInfo;
-            if (!_typeInjectionInfos.TryGetValue(type, out typeInjectionInfo))
-            {
-                typeInjectionInfo = new TypeInjectionInfo(type);
-                _typeInjectionInfos.Add(type, typeInjectionInfo);
-            }
+            if (_typeInjectionInfos.TryGetValue(type, out typeInjectionInfo))
+                return typeInjectionInfo;
+
+            typeInjectionInfo = new TypeInjectionInfo(type);
+            _typeInjectionInfos.Add(type, typeInjectionInfo);
+
             return typeInjectionInfo;
         }
 
         private TypeReflectionInfo GetTypeReflectionInfo(Type type)
         {
             TypeReflectionInfo typeReflectionInfo;
-            if (!_typeReflectionInfos.TryGetValue(type, out typeReflectionInfo))
-            {
-                typeReflectionInfo = new TypeReflectionInfo(type);
-                _typeReflectionInfos.Add(type, typeReflectionInfo);
-            }
+            if (_typeReflectionInfos.TryGetValue(type, out typeReflectionInfo))
+                return typeReflectionInfo;
+
+            typeReflectionInfo = new TypeReflectionInfo(type);
+            _typeReflectionInfos.Add(type, typeReflectionInfo);
+
             return typeReflectionInfo;
         }
 
@@ -324,9 +370,9 @@ namespace uFrame.IOC
             public TypeReflectionInfo(Type type)
             {
 #if !NETFX_CORE
-                ConstructorInfo[] constructors = type.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
+                var constructors = type.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
 #else
-                ConstructorInfo[] constructors = type.GetTypeInfo().DeclaredConstructors.ToArray();
+                var constructors = type.GetTypeInfo().DeclaredConstructors.ToArray();
 #endif
                 PublicConstructors =
                     constructors
@@ -339,7 +385,8 @@ namespace uFrame.IOC
                 public readonly ConstructorInfo Constructor;
                 public readonly ParameterInfo[] Parameters;
 
-                public ConstructorInfoData(ConstructorInfo constructor, ParameterInfo[] parameters) {
+                public ConstructorInfoData(ConstructorInfo constructor, ParameterInfo[] parameters)
+                {
                     Constructor = constructor;
                     Parameters = parameters;
                 }
@@ -353,10 +400,8 @@ namespace uFrame.IOC
 
             public TypeInjectionInfo(Type type)
             {
-                List<InjectionMemberInfo<PropertyInfo>> propertyInjectionInfos =
-                    new List<InjectionMemberInfo<PropertyInfo>>();
-                List<InjectionMemberInfo<FieldInfo>> fieldInjectionInfos =
-                    new List<InjectionMemberInfo<FieldInfo>>();
+                var propertyInjectionInfos = new List<InjectionMemberInfo<PropertyInfo>>();
+                var fieldInjectionInfos = new List<InjectionMemberInfo<FieldInfo>>();
 #if !NETFX_CORE
                 var members = type.GetMembers();
 #else
@@ -373,14 +418,16 @@ namespace uFrame.IOC
                     var propertyInfo = memberInfo as PropertyInfo;
                     if (propertyInfo != null)
                     {
-                        propertyInjectionInfos.Add(new InjectionMemberInfo<PropertyInfo>(propertyInfo, propertyInfo.PropertyType, injectAttribute.Name));
+                        propertyInjectionInfos.Add(new InjectionMemberInfo<PropertyInfo>(propertyInfo,
+                            propertyInfo.PropertyType, injectAttribute.Name));
                         continue;
                     }
 
                     var fieldInfo = memberInfo as FieldInfo;
                     if (fieldInfo != null)
                     {
-                        fieldInjectionInfos.Add(new InjectionMemberInfo<FieldInfo>(fieldInfo, fieldInfo.FieldType, injectAttribute.Name));
+                        fieldInjectionInfos.Add(new InjectionMemberInfo<FieldInfo>(fieldInfo, fieldInfo.FieldType,
+                            injectAttribute.Name));
                     }
                 }
 
@@ -404,114 +451,57 @@ namespace uFrame.IOC
         }
     }
 
-    public class TypeMappingCollection : Dictionary<Tuple<Type, string>, Type>
+    public class TypeMappingCollection : Dictionary<TypeInstanceId, Type>
     {
         public Type this[Type from, string name = null]
         {
             get
             {
-                Tuple<Type, string> key = new Tuple<Type, string>(from, name);
+                var key = new TypeInstanceId(from, name);
                 Type mapping = null;
-                if (this.TryGetValue(key, out mapping))
-                {
-                    return mapping;
-                }
-                return null;
+                return TryGetValue(key, out mapping) ? mapping : null;
             }
             set
             {
-                Tuple<Type, string> key = new Tuple<Type, string>(from, name);
+                var key = new TypeInstanceId(from, name);
                 this[key] = value;
             }
         }
     }
-    public class TypeInstanceCollection : Dictionary<Tuple<Type, string>, object>
-    {
 
+    public class TypeInstanceCollection : Dictionary<TypeInstanceId, object>
+    {
         public object this[Type from, string name = null]
         {
             get
             {
-                Tuple<Type, string> key = new Tuple<Type, string>(from, name);
+                var key = new TypeInstanceId(from, name);
                 object mapping = null;
-                if (this.TryGetValue(key, out mapping))
-                {
-                    return mapping;
-                }
-                return null;
+                return TryGetValue(key, out mapping) ? mapping : null;
             }
             set
             {
-                Tuple<Type, string> key = new Tuple<Type, string>(from, name);
+                var key = new TypeInstanceId(from, name);
                 this[key] = value;
             }
         }
     }
-    public class TypeRelationCollection : Dictionary<Tuple<Type, Type>, Type>
-    {
 
+    public class TypeRelationCollection : Dictionary<TypeMapping, Type>
+    {
         public Type this[Type from, Type to]
         {
             get
             {
-                Tuple<Type, Type> key = new Tuple<Type, Type>(from, to);
+                var key = new TypeMapping(from, to);
                 Type mapping = null;
-                if (this.TryGetValue(key, out mapping))
-                {
-                    return mapping;
-                }
-                return null;
+                return TryGetValue(key, out mapping) ? mapping : null;
             }
             set
             {
-                Tuple<Type, Type> key = new Tuple<Type, Type>(from, to);
+                var key = new TypeMapping(from, to);
                 this[key] = value;
             }
         }
-    }
-    public class TypeRelation
-    {
-        public Type From
-        {
-            get;
-            set;
-        }
-
-        public Type To { get; set; }
-
-        public Type Concrete { get; set; }
-
-        //public string Name { get; set; }
-    }
-    public class RegisteredInstance
-    {
-        public Type Base
-        {
-            get;
-            set;
-        }
-
-        public object Instance
-        {
-            get;
-            set;
-        }
-
-        public string Name { get; set; }
-    }
-    public class TypeMapping
-    {
-        public Type From
-        {
-            get;
-            set;
-        }
-
-        public Type To
-        {
-            get;
-            set;
-        }
-        public string Name { get; set; }
     }
 }

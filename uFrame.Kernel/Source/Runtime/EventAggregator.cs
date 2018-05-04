@@ -83,7 +83,7 @@ namespace uFrame.Kernel
             return null;
         }
 
-        public IObservable<TEvent> GetEvent<TEvent>()
+        public IObservable<TEvent> Receive<TEvent>()
         {
             IEventManager eventManager;
             Type eventType = typeof(TEvent);

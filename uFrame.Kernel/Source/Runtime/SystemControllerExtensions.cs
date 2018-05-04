@@ -11,14 +11,15 @@ namespace uFrame.Kernel
         /// </summary>
         /// <typeparam name="TEvent"></typeparam>
         /// <returns>An observable capable of subscriptions and filtering.</returns>
-        public static IObservable<TEvent> OnEvent<TEvent>(this ISystemService systemController)
+        public static IObservable<TEvent> OnReceive<TEvent>(this ISystemService systemController)
         {
-            return systemController.EventAggregator.GetEvent<TEvent>();
+            return systemController.EventAggregator.Receive<TEvent>();
         }
 
         /// <summary>
         /// A wrapper for the Event Aggregator.Publish method.
         /// </summary>
+        /// <param name="systemController"></param>
         /// <param name="eventMessage"></param>
         public static void Publish(this ISystemService systemController, object eventMessage)
         {
