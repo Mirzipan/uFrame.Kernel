@@ -170,6 +170,8 @@ namespace uFrame.Kernel
             return EventAggregator.Receive<TEvent>();
         }
     }
+    
+    #region Event Types
 
     public struct SystemsLoadedEvent
     {
@@ -194,19 +196,6 @@ namespace uFrame.Kernel
 
     }
 
-    public struct LoadSceneCommand
-    {
-
-        public string SceneName { get; set; }
-        public ISceneSettings Settings { get; set; }
-        public bool RestrictToSingleScene { get; set; }
-    }
-
-    public struct UnloadSceneCommand
-    {
-        public string SceneName { get; set; }
-    }
-
     public struct SystemLoaderEvent
     {
         public SystemState State { get; set; }
@@ -218,27 +207,6 @@ namespace uFrame.Kernel
         public ServiceState State { get; set; }
         public ISystemService Service { get; set; }
         public float GlobalProgress { get; set; }
-    }
-
-    public struct SceneLoaderEvent
-    {
-        public SceneState State { get; set; }
-        public IScene SceneRoot { get; set; }
-        public float Progress { get; set; }
-        public string ProgressMessage { get; set; }
-        public string Name { get; set; }
-    }
-
-    public enum SceneState
-    {
-        Loading,
-        Update,
-        Loaded,
-        Unloading,
-        Unloaded,
-        Instantiating,
-        Instantiated,
-        Destructed
     }
 
     public enum ServiceState
@@ -254,4 +222,6 @@ namespace uFrame.Kernel
         Loaded,
         Unloaded,
     }
+    
+    #endregion
 }

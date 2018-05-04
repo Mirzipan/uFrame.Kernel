@@ -286,4 +286,41 @@ namespace uFrame.Kernel
         public ISceneSettings Settings { get; set; }
         public bool RestrictToSingleScene { get; set; }
     }
+
+    #region Commands and Events
+
+    public struct LoadSceneCommand
+    {
+        public string SceneName { get; set; }
+        public ISceneSettings Settings { get; set; }
+        public bool RestrictToSingleScene { get; set; }
+    }
+
+    public struct UnloadSceneCommand
+    {
+        public string SceneName { get; set; }
+    }
+
+    public struct SceneLoaderEvent
+    {
+        public SceneState State { get; set; }
+        public IScene SceneRoot { get; set; }
+        public float Progress { get; set; }
+        public string ProgressMessage { get; set; }
+        public string Name { get; set; }
+    }
+
+    public enum SceneState
+    {
+        Loading,
+        Update,
+        Loaded,
+        Unloading,
+        Unloaded,
+        Instantiating,
+        Instantiated,
+        Destructed
+    }
+
+    #endregion
 }
