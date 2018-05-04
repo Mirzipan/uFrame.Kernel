@@ -49,13 +49,11 @@ namespace uFrame.Kernel
             set { _eventId = value; }
         }
 
-        public Type For { get { return typeof(TEvent); } }
+        public Type For => typeof(TEvent);
+
         public void Publish(TEvent evt)
         {
-            if (_eventType != null)
-            {
-                _eventType.OnNext(evt);
-            }
+            _eventType?.OnNext(evt);
         }
     }
 
